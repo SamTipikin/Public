@@ -1,0 +1,67 @@
+<style>
+  body { font: 11px/1.4 Inter, sans-serif; margin: 0; padding: 12px; color: #111; }
+  select, button { width: 100%; box-sizing: border-box; font: inherit; padding: 6px 8px;
+    border: 1px solid #d0d0d0; border-radius: 6px; background: #fff; }
+  button { margin-top: 8px; cursor: pointer; background: #111; color: #fff; border: none; }
+  button.secondary { background: #fff; color: #111; border: 1px solid #d0d0d0; }
+  #status { margin-top: 10px; color: #666; }
+  #status.live { color: #0a7d33; }
+</style>
+
+<select id="picker"></select>
+<button id="start">Start watching</button>
+<button id="snapSel" class="secondary" style="display:none">Snap selection</button>
+<div id="status">Pick a collection.</div>
+
+<script>
+  const picker = document.getElementById("picker");
+  const startBtn = document.getElementById("start");
+  const snapBtn = document.getElementById("snapSel");
+  const status = document.getElementById("status");
+  let snappedTotal = 0;
+
+  onmessage = (e) => {
+    const msg = e.data.pluginMessage;
+    if (!msg) return;
+
+    if (msg.type === "collections") {
+      picker.innerHTML = "";
+      for (const c of msg.collections) {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.name;
+        if (msg.saved === c.id) opt.selected = true;
+        picker.appendChild(opt);
+      }
+      // auto-start with remembered collection
+      if (msg.saved && msg.collections.some((c) => c.id === msg.saved)) {
+        parent.postMessage({ pluginMessage: { type: "start", collectionId: msg.saved } }, "*");
+      }
+    }
+
+    if (msg.type === "watching") {
+      status.textContent = "Live — " + msg.collection + " (" + msg.count + " values). Leave me open.";
+      status.className = "live";
+      startBtn.style.display = "none";
+      picker.disabled = true;
+      snapBtn.style.display = "block";
+    }
+
+    if (msg.type === "snapped") {
+      snappedTotal += msg.count;
+      status.textContent = "Live — snapped " + snappedTotal + " value" + (snappedTotal === 1 ? "" : "s") + " this session.";
+    }
+
+    if (msg.type === "error") {
+      const live = status.className === "live";
+      status.textContent = msg.message + (live ? " (still watching)" : "");
+    }
+  };
+
+  startBtn.onclick = () => {
+    parent.postMessage({ pluginMessage: { type: "start", collectionId: picker.value } }, "*");
+  };
+  snapBtn.onclick = () => {
+    parent.postMessage({ pluginMessage: { type: "snap-selection" } }, "*");
+  };
+</script>
